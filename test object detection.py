@@ -71,3 +71,12 @@ def main():
     model_path = 'model/yolov8s-pose.pt'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
     input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
+    # Load the YOLOv8 model
+    model = YOLO(model_path)
+
+    # Load exersice model
+    with open(os.path.join(os.path.dirname(detector_model_path), 'idx_2_category.json'), 'r') as f:
+        idx_2_category = json.load(f)
+    detect_model = LSTM(17*2, 8, 2, 3, model.device)
+    model_weight = torch.load(detector_model_path)
+    detect_model.load_state_dict(model_weight)
