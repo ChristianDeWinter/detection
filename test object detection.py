@@ -67,3 +67,7 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
     angle_right = _calculate_angle(line1_right, line2_right)
     angle = (angle_left + angle_right) / 2
     return angle
+def main():
+    model_path = 'model/yolov8s-pose.pt'
+    detector_model_path = './for_detect/checkpoint/best_model.pt'
+    input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
