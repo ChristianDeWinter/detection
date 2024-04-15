@@ -7,6 +7,7 @@ import json
 import datetime
 import argparse
 from ultralytics import YOLO
+from for_detect.Inference import LSTM
 
 sport_list = {
     'situp': {
@@ -34,6 +35,7 @@ sport_list = {
         'concerned_skeletons_idx': [[16, 14], [14, 12], [17, 15], [15, 13]]
     }
 }
+
 def calculate_angle(key_points, left_points_idx, right_points_idx):
     def _calculate_angle(line1, line2):
         slope1 = math.atan2(line1[3] - line1[1], line1[2] - line1[0])
@@ -67,10 +69,12 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
     angle_right = _calculate_angle(line1_right, line2_right)
     angle = (angle_left + angle_right) / 2
     return angle
+
 def main():
     model_path = 'model/yolov8s-pose.pt'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
     input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
+
     # Load the YOLOv8 model
     model = YOLO(model_path)
 
@@ -80,3 +84,54 @@ def main():
     detect_model = LSTM(17*2, 8, 2, 3, model.device)
     model_weight = torch.load(detector_model_path)
     detect_model.load_state_dict(model_weight)
+
+    # Open the video file or camera
+    if input_video_path.isnumeric():
+        cap = cv2.VideoCapture(int(input_video_path))
+    else:
+        cap = cv2.VideoCapture(input_video_path)
+
+    # Set variables to record motion status
+    reaching = False
+    reaching_last = False
+    state_keep = False
+    pushup_counter = 0
+
+    while cap.isOpened():
+        success, frame = cap.read()
+
+        if success:
+            results = model(frame)
+
+            if results[0].keypoints.shape[1] == 0:
+                continue
+
+            angle = calculate_angle(results[0].keypoints, sport_list['pushup']['left_points_idx'], sport_list['pushup']['right_points_idx'])
+
+            if angle < sport_list['pushup']['maintaining']:
+                reaching = True
+            if angle > sport_list['pushup']['relaxing']:
+                reaching = False
+
+            if reaching != reaching_last:
+                reaching_last = reaching
+                if reaching:
+                    state_keep = True
+                if not reaching and state_keep:
+                    pushup_counter += 1
+                    state_keep = False
+
+            print(f"Number of push-ups: {pushup_counter}")
+
+            cv2.imshow("Push-up Cam", frame)
+
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+        else:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
