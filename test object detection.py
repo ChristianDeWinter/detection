@@ -78,7 +78,7 @@ def main():
     # Load the YOLOv8 model
     model = YOLO(model_path)
 
-    # Load exersice model
+    # Load exercise model
     with open(os.path.join(os.path.dirname(detector_model_path), 'idx_2_category.json'), 'r') as f:
         idx_2_category = json.load(f)
     detect_model = LSTM(17*2, 8, 2, 3, model.device)
@@ -121,14 +121,23 @@ def main():
                     pushup_counter += 1
                     state_keep = False
 
-            print(f"Number of push-ups: {pushup_counter}")
+            # Display push-up counter and file name on the video frame
+            cv2.putText(frame, "Number of Push-ups: " + str(pushup_counter), (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, "Currently working on: " + input_video_path, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("Push-up Cam", frame)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            # End the program and save push-up count to a text file if 'q' is pressed
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord("q"):
+                current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
+                with open("pushup_count.txt", "a") as file:
+                    file.write(f"{current_time}, {pushup_counter} push-ups\n")
                 break
         else:
             break
+
+    print("Total Push-ups:", pushup_counter)
 
     cap.release()
     cv2.destroyAllWindows()
