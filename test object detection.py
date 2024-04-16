@@ -8,6 +8,7 @@ import datetime
 import argparse
 from ultralytics import YOLO
 from for_detect.Inference import LSTM
+import subprocess
 
 sport_list = {
     'situp': {
@@ -142,7 +143,7 @@ def main():
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
                 with open("pushup_count.txt", "a") as file:
                     file.write(f"{current_time}, {pushup_counter} push-ups\n")
-                break
+                break  # Exit the loop and terminate the program
         else:
             break
 
@@ -150,6 +151,9 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
+    # Run the pushup_count_gui.py script after object_detect.py terminates
+    subprocess.Popen(["python", "pushup_count_gui.py"])
 
 if __name__ == '__main__':
     main()
