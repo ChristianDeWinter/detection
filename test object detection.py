@@ -96,6 +96,12 @@ def main():
     reaching_last = False
     state_keep = False
     pushup_counter = 0
+    prev_angle = None
+
+    # Define thresholds and hysteresis
+    maintaining_threshold = sport_list['pushup']['maintaining']
+    relaxing_threshold = sport_list['pushup']['relaxing']
+    hysteresis = 40  # You can adjust this value based on experimentation
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -108,22 +114,25 @@ def main():
 
             angle = calculate_angle(results[0].keypoints, sport_list['pushup']['left_points_idx'], sport_list['pushup']['right_points_idx'])
 
-            if angle < sport_list['pushup']['maintaining']:
+            if angle < maintaining_threshold - hysteresis:
                 reaching = True
-            if angle > sport_list['pushup']['relaxing']:
+            elif angle > relaxing_threshold + hysteresis:
                 reaching = False
 
             if reaching != reaching_last:
                 reaching_last = reaching
                 if reaching:
                     state_keep = True
-                if not reaching and state_keep:
-                    pushup_counter += 1
+                elif not reaching and state_keep:
+                    # Check if the angle has crossed the threshold in the opposite direction
+                    if prev_angle is not None and prev_angle > relaxing_threshold:
+                        pushup_counter += 1
                     state_keep = False
+            prev_angle = angle
 
             # Display push-up counter and file name on the video frame
             cv2.putText(frame, "Number of Push-ups: " + str(pushup_counter), (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, "Currently working on: " + input_video_path, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            #cv2.putText(frame, "Currently working on: " + input_video_path, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("Push-up Cam", frame)
 
