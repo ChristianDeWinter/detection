@@ -6,9 +6,9 @@ import math
 import json
 import datetime
 import argparse
+import subprocess
 from ultralytics import YOLO
 from for_detect.Inference import LSTM
-import subprocess
 
 sport_list = {
     'situp': {
@@ -72,6 +72,25 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
     return angle
 
 def main():
+    # Load push-up count from the file for the current day, if available
+    current_date = datetime.datetime.now().strftime("%m/%d/%y")
+    pushup_counter = 0
+    total_pushup_count = 0
+    
+    if os.path.exists("pushup_count.txt") and os.stat("pushup_count.txt").st_size != 0:
+        with open("pushup_count.txt", "r") as file:
+            for line in file:
+                # Extract date from the line
+                line_parts = line.split(", ")
+                if len(line_parts) >= 2:
+                    line_date = line_parts[0].split(" ")[1]
+                    if current_date == line_date:
+                        print("Found entry for today:", line)
+                        # Extract push-up count from the line and add it to the total count
+                        total_pushup_count += int(line_parts[1].split(" ")[0])
+
+    print("Total push-up count for today:", total_pushup_count)
+
     model_path = 'model/yolov8s-pose.pt'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
     input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
@@ -96,13 +115,12 @@ def main():
     reaching = False
     reaching_last = False
     state_keep = False
-    pushup_counter = 0
     prev_angle = None
 
     # Define thresholds and hysteresis
     maintaining_threshold = sport_list['pushup']['maintaining']
     relaxing_threshold = sport_list['pushup']['relaxing']
-    hysteresis = 40  # You can adjust this value based on experimentation
+    hysteresis = 40  # Adjust this value based on experimentation
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -128,12 +146,17 @@ def main():
                     # Check if the angle has crossed the threshold in the opposite direction
                     if prev_angle is not None and prev_angle > relaxing_threshold:
                         pushup_counter += 1
+                        total_pushup_count += 1
                     state_keep = False
             prev_angle = angle
 
-            # Display push-up counter and file name on the video frame
-            cv2.putText(frame, "Number of Push-ups: " + str(pushup_counter), (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            #cv2.putText(frame, "Currently working on: " + input_video_path, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # Set text to display based on push-up count
+            if total_pushup_count >= 100:
+                text = "Completed daily push-up!s"
+            else:
+                text = f"Number of Push-ups: {total_pushup_count}/100"
+            # Display push-up counter on the video frame
+            cv2.putText(frame, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("Push-up Cam", frame)
 
@@ -143,11 +166,14 @@ def main():
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
                 with open("pushup_count.txt", "a") as file:
                     file.write(f"{current_time}, {pushup_counter} push-ups\n")
-                break  # Exit the loop and terminate the program
+                break
+            
+            # Check if the push-up count has reached 100
+            if pushup_counter == 100:
+                print("Challenge Complete!")
+
         else:
             break
-
-    print("Total Push-ups:", pushup_counter)
 
     cap.release()
     cv2.destroyAllWindows()
