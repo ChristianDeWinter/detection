@@ -93,7 +93,7 @@ def main():
 
     model_path = 'model/yolov8s-pose.pt'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
-    input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
+    input_video_path = r'0'
 
     # Load the YOLOv8 model
     model = YOLO(model_path)
@@ -120,7 +120,7 @@ def main():
     # Define thresholds and hysteresis
     maintaining_threshold = sport_list['pushup']['maintaining']
     relaxing_threshold = sport_list['pushup']['relaxing']
-    hysteresis = 40  # Adjust this value based on experimentation
+    hysteresis = 48.7  # Adjust this value based on experimentation (For Videos = 40 is good and for Camera = 48.7 wroks for skinny jacket/coat dont work (sometimes count Not 100%))
 
     while cap.isOpened():
         success, frame = cap.read()
