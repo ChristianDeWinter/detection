@@ -7,6 +7,7 @@ import json
 import datetime
 import argparse
 import subprocess
+import pygame
 from ultralytics import YOLO
 from for_detect.Inference import LSTM
 
@@ -72,6 +73,9 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
     return angle
 
 def main():
+    # Initialize pygame mixer
+    pygame.mixer.init()
+
     # Load push-up count from the file for the current day, if available
     current_date = datetime.datetime.now().strftime("%m/%d/%y")
     pushup_counter = 0
@@ -91,9 +95,9 @@ def main():
 
     print("Total push-up count for today:", total_pushup_count)
 
-    model_path = 'model/yolov8s-pose.pt'
+    model_path = 'model/yolov8s-pose.engine'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
-    input_video_path = r'0'
+    input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
 
     # Load the YOLOv8 model
     model = YOLO(model_path)
@@ -120,7 +124,9 @@ def main():
     # Define thresholds and hysteresis
     maintaining_threshold = sport_list['pushup']['maintaining']
     relaxing_threshold = sport_list['pushup']['relaxing']
-    hysteresis = 48.7  # Adjust this value based on experimentation (For Videos = 40 is good and for Camera = 48.7 wroks for skinny jacket/coat dont work (sometimes count Not 100%))
+    hysteresis = 48.7  # Adjust this value based on experimentation (For Videos = 40 is good and for Camera = 48.7 wroks for skinny. Jacket/Coat dont work (sometimes count Not 100%))
+
+    pushup_sound = pygame.mixer.Sound(r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\sound\ding.mp3')
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -147,12 +153,14 @@ def main():
                     if prev_angle is not None and prev_angle > relaxing_threshold:
                         pushup_counter += 1
                         total_pushup_count += 1
+                        # Play push-up sound
+                        pushup_sound.play()
                     state_keep = False
             prev_angle = angle
 
             # Set text to display based on push-up count
             if total_pushup_count >= 100:
-                text = "Completed daily push-up!s"
+                text = "Completed daily push-ups"
             else:
                 text = f"Number of Push-ups: {total_pushup_count}/100"
             # Display push-up counter on the video frame
@@ -171,7 +179,6 @@ def main():
             # Check if the push-up count has reached 100
             if pushup_counter == 100:
                 print("Challenge Complete!")
-
         else:
             break
 
