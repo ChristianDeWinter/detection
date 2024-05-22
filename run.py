@@ -1,8 +1,69 @@
 import subprocess
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox, StringVar
 import sys
 import threading
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+def parse_data_from_file(filename):
+    parsed_data = {"dates": [], "push_ups": []}
+    with open(filename, 'r') as file:
+        for line in file:
+            date_str, push_up_str = line.strip().split(", ")
+            date = datetime.strptime(date_str, "%A %m/%d/%y %I:%M %p")
+            push_ups = int(push_up_str.split()[0])
+            parsed_data["dates"].append(date)
+            parsed_data["push_ups"].append(push_ups)
+    return parsed_data
+
+def filter_data(parsed_data, interval):
+    filtered_dates = []
+    filtered_push_ups = []
+
+    if interval == "Every Day of Current Month":
+        current_month = parsed_data["dates"][0].month
+        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
+            if date.month == current_month:
+                filtered_dates.append(date)
+                filtered_push_ups.append(push_ups)
+    elif interval == "Every Month of Year":
+        current_year = parsed_data["dates"][0].year
+        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
+            if date.year == current_year:
+                filtered_dates.append(date)
+                filtered_push_ups.append(push_ups)
+    elif interval == "Every Five Days":
+        current_date = parsed_data["dates"][0]
+        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
+            if (date - current_date).days % 5 == 0:
+                filtered_dates.append(date)
+                filtered_push_ups.append(push_ups)
+
+    return {"dates": filtered_dates, "push_ups": filtered_push_ups}
+
+def update_chart():
+    global parsed_data
+    global chart_tab
+
+    selected_interval = filter_var.get()
+    filtered_data = filter_data(parsed_data, selected_interval)
+
+    for widget in chart_tab.winfo_children():
+        widget.destroy()
+
+    fig, ax = plt.subplots()
+    ax.plot(filtered_data["dates"], filtered_data["push_ups"], marker='o', linestyle='-')
+    ax.set_xlabel('Date and Time')
+    ax.set_ylabel('Number of Push-ups')
+    ax.set_title('Push-ups Over Time')
+
+    plt.xticks(rotation=45, ha='right')
+
+    canvas = FigureCanvasTkAgg(fig, master=chart_tab)
+    canvas.draw()
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
 def run_main_script():
     try:
@@ -18,7 +79,6 @@ def run_main_script():
 
 def run_button_clicked():
     if not main_script_executed:
- 
         threading.Thread(target=run_main_script).start()
 
 def quit_button_clicked():
@@ -42,7 +102,25 @@ def create_gui():
     quit_button = tk.Button(root, text="Quit", command=quit_button_clicked)
     quit_button.pack(pady=5)
 
-    root.mainloop()
+    global filter_var
+    filter_var = StringVar(root)
+    filter_var.set("Filter Interval")
+    filter_dropdown = ttk.Combobox(root, textvariable=filter_var, values=["Every Day of Current Month", "Every Month of Year", "Every Five Days"])
+    filter_dropdown.pack(pady=5)
+
+    filter_button = tk.Button(root, text="Filter", command=update_chart)
+    filter_button.pack(pady=5)
     
+    global notebook
+    notebook = ttk.Notebook(root)
+    notebook.pack(fill=tk.BOTH, expand=True)
+
+    global chart_tab
+    chart_tab = ttk.Frame(notebook)
+    notebook.add(chart_tab, text='Chart')
+
+    root.mainloop()
+
 if __name__ == "__main__":
+    parsed_data = parse_data_from_file("pushup_count.txt")
     create_gui()
