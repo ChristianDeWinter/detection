@@ -80,6 +80,8 @@ def main():
     current_date = datetime.datetime.now().strftime("%m/%d/%y")
     pushup_counter = 0
     total_pushup_count = 0
+    # push up goal for the day
+    daily_pushup_goal = 100
     
     if os.path.exists("pushup_count.txt") and os.stat("pushup_count.txt").st_size != 0:
         with open("pushup_count.txt", "r") as file:
@@ -97,8 +99,9 @@ def main():
 
     model_path = 'model/yolov8s-pose.engine'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
-    input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
-
+    # 0 is for camera. You can change to path of a video
+    input_video_path = r'0'
+    exit_key = "q"
     # Load the YOLOv8 model
     model = YOLO(model_path)
 
@@ -126,7 +129,7 @@ def main():
     relaxing_threshold = sport_list['pushup']['relaxing']
     hysteresis = 48.7  # Adjust this value based on experimentation (For Videos = 40 is good and for Camera = 48.7 wroks for skinny. Jacket/Coat dont work (sometimes count Not 100%))
 
-    pushup_sound = pygame.mixer.Sound(r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\sound\ding.mp3')
+    pushup_sound = pygame.mixer.Sound(r'Path To Sound Folder HERE!!!')
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -159,25 +162,27 @@ def main():
             prev_angle = angle
 
             # Set text to display based on push-up count
-            if total_pushup_count >= 100:
+            if total_pushup_count >= daily_pushup_goal:
                 text = "Completed daily push-ups"
             else:
-                text = f"Number of Push-ups: {total_pushup_count}/100"
+                text = f"Number of Push-ups: {total_pushup_count}/{daily_pushup_goal}"
+                text2 =f"Press: {exit_key} to quit"
             # Display push-up counter on the video frame
             cv2.putText(frame, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, text2, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("Push-up Cam", frame)
 
-            # End the program and save push-up count to a text file if 'q' is pressed
+            # End the program and save push-up count to a text file if 'exit_key' is pressed
             key = cv2.waitKey(1)
-            if key & 0xFF == ord("q"):
+            if key & 0xFF == ord(f"{exit_key}"):
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
                 with open("pushup_count.txt", "a") as file:
                     file.write(f"{current_time}, {pushup_counter} push-ups\n")
                 break
             
-            # Check if the push-up count has reached 100
-            if pushup_counter == 100:
+            # Check if the push-up count has reached goal
+            if pushup_counter == daily_pushup_goal:
                 print("Challenge Complete!")
         else:
             break
@@ -185,8 +190,8 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
 
-    # Run the pushup_count_gui.py script after object_detect.py terminates
-    subprocess.Popen(["python", "pushup_count_gui.py"])
+    # Runs the pushup_count_message.py script after object_detect.py terminates
+    subprocess.Popen(["python", "pushup_count_message.py"])
 
 if __name__ == '__main__':
     main()
