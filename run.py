@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, StringVar
@@ -6,6 +7,7 @@ import threading
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import calendar
 
 def parse_data_from_file(filename):
     parsed_data = {"dates": [], "push_ups": []}
@@ -22,24 +24,45 @@ def filter_data(parsed_data, interval):
     filtered_dates = []
     filtered_push_ups = []
 
-    if interval == "Every Day of Current Month":
+    if interval == "Every Week of the Month":
         current_month = parsed_data["dates"][0].month
-        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
-            if date.month == current_month:
-                filtered_dates.append(date)
-                filtered_push_ups.append(push_ups)
+        current_year = parsed_data["dates"][0].year
+        
+        first_day = datetime(parsed_data["dates"][0].year, parsed_data["dates"][0].month, 1)
+        last_day = datetime(parsed_data["dates"][0].year, parsed_data["dates"][0].month, calendar.monthrange(current_year, current_month)[1])
+        
+        all_mondays = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1) if (first_day + timedelta(days=i)).weekday() == 0]
+        
+        for monday in all_mondays:
+            week_start = monday.strftime("%Y-%m-%d")
+            week_end = (monday + timedelta(days=6)).strftime("%Y-%m-%d")
+            week_total = sum(parsed_data["push_ups"][i] for i, date in enumerate(parsed_data["dates"]) if week_start <= date.strftime("%Y-%m-%d") <= week_end)
+            filtered_dates.append(f"{week_start} to {week_end}")
+            filtered_push_ups.append(week_total)
+
     elif interval == "Every Month of Year":
         current_year = parsed_data["dates"][0].year
+        month_data = {}
         for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
             if date.year == current_year:
-                filtered_dates.append(date)
-                filtered_push_ups.append(push_ups)
-    elif interval == "Every Five Days":
-        current_date = parsed_data["dates"][0]
-        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
-            if (date - current_date).days % 5 == 0:
-                filtered_dates.append(date)
-                filtered_push_ups.append(push_ups)
+                month = date.month
+                if month not in month_data:
+                    month_data[month] = []
+                month_data[month].append(push_ups)
+
+        for month in range(1, 13):
+            if month in month_data:
+                filtered_dates.append(calendar.month_name[month])
+                filtered_push_ups.append(sum(month_data[month]))
+            else:
+                filtered_dates.append(calendar.month_name[month])
+                filtered_push_ups.append(0)
+
+    elif interval == "Today":
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_total = sum(parsed_data["push_ups"][i] for i, date in enumerate(parsed_data["dates"]) if date.strftime("%Y-%m-%d") == today)
+        filtered_dates.append(today)
+        filtered_push_ups.append(today_total)
 
     return {"dates": filtered_dates, "push_ups": filtered_push_ups}
 
@@ -48,13 +71,14 @@ def update_chart():
     global chart_tab
 
     selected_interval = filter_var.get()
+    
     filtered_data = filter_data(parsed_data, selected_interval)
 
     for widget in chart_tab.winfo_children():
         widget.destroy()
 
     fig, ax = plt.subplots()
-    ax.plot(filtered_data["dates"], filtered_data["push_ups"], marker='o', linestyle='-')
+    ax.bar(filtered_data["dates"], filtered_data["push_ups"], width=0.6)
     ax.set_xlabel('Date and Time')
     ax.set_ylabel('Number of Push-ups')
     ax.set_title('Push-ups Over Time')
@@ -66,16 +90,21 @@ def update_chart():
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
 def run_main_script():
+    script_name = "test object detection.py"
+    script_path = os.path.join(os.getcwd(), script_name)
+    print(f"Running script at path: {script_path}")
+    if not os.path.isfile(script_path):
+        messagebox.showerror("Error", f"Script file not found: {script_path}")
+        return
     try:
-        subprocess.run(["python", "test object detection.py"], check=True)
+        subprocess.run(["python", script_path], check=True)
     except subprocess.CalledProcessError as e:
         messagebox.showerror("Error", f"Error running main script: {e}")
     finally:
         global main_script_executed
         main_script_executed = True
         run_button.config(state=tk.DISABLED)
-        root.quit()
-        root.destroy() 
+        root.after(0, root.quit)
 
 def run_button_clicked():
     if not main_script_executed:
@@ -83,7 +112,9 @@ def run_button_clicked():
 
 def quit_button_clicked():
     if messagebox.askokcancel("Quit", "Are you sure you want to quit?"):
-        root.destroy()
+        root.quit()
+        root.after(0, root.destroy)
+        root.after(100, sys.exit)
 
 def create_gui():
     global root
@@ -105,7 +136,7 @@ def create_gui():
     global filter_var
     filter_var = StringVar(root)
     filter_var.set("Filter Interval")
-    filter_dropdown = ttk.Combobox(root, textvariable=filter_var, values=["Every Day of Current Month", "Every Month of Year", "Every Five Days"])
+    filter_dropdown = ttk.Combobox(root, textvariable=filter_var, values=["Today", "Every Week of the Month", "Every Month of Year"])
     filter_dropdown.pack(pady=5)
 
     filter_button = tk.Button(root, text="Filter", command=update_chart)
