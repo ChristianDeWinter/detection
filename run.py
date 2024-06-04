@@ -10,61 +10,110 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import calendar
 
 def parse_data_from_file(filename):
-    parsed_data = {"dates": [], "push_ups": []}
+    parsed_data = {"dates": [], "push_ups": [], "squats": [], "sit_ups": []}
     with open(filename, 'r') as file:
         for line in file:
-            date_str, push_up_str = line.strip().split(", ")
+            date_str, push_up_str, squats_str, sit_up_str = line.strip().split(", ")
             date = datetime.strptime(date_str, "%A %m/%d/%y %I:%M %p")
             push_ups = int(push_up_str.split()[0])
+            squats = int(squats_str.split()[0])
+            sit_ups = int(sit_up_str.split()[0])
             parsed_data["dates"].append(date)
             parsed_data["push_ups"].append(push_ups)
+            parsed_data["squats"].append(squats)
+            parsed_data["sit_ups"].append(sit_ups)
     return parsed_data
 
 def filter_data(parsed_data, interval):
     filtered_dates = []
     filtered_push_ups = []
+    filtered_squats = []
+    filtered_sit_ups = []
 
     if interval == "Every Week of the Month":
         current_month = parsed_data["dates"][0].month
         current_year = parsed_data["dates"][0].year
-        
-        first_day = datetime(parsed_data["dates"][0].year, parsed_data["dates"][0].month, 1)
-        last_day = datetime(parsed_data["dates"][0].year, parsed_data["dates"][0].month, calendar.monthrange(current_year, current_month)[1])
-        
-        all_mondays = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1) if (first_day + timedelta(days=i)).weekday() == 0]
-        
+
+        first_day = datetime(current_year, current_month, 1)
+        last_day = datetime(current_year, current_month, calendar.monthrange(current_year, current_month)[1])
+
+        all_mondays = []
+        day = first_day
+        while day <= last_day:
+            if day.weekday() == 0:  # Monday
+                all_mondays.append(day)
+            day += timedelta(days=1)
+
         for monday in all_mondays:
-            week_start = monday.strftime("%Y-%m-%d")
-            week_end = (monday + timedelta(days=6)).strftime("%Y-%m-%d")
-            week_total = sum(parsed_data["push_ups"][i] for i, date in enumerate(parsed_data["dates"]) if week_start <= date.strftime("%Y-%m-%d") <= week_end)
-            filtered_dates.append(f"{week_start} to {week_end}")
-            filtered_push_ups.append(week_total)
+            week_start = monday
+            week_end = monday + timedelta(days=6)
+            week_push_ups = sum(
+                parsed_data["push_ups"][i]
+                for i, date in enumerate(parsed_data["dates"])
+                if week_start <= date <= week_end
+            )
+            week_squats = sum(
+                parsed_data["squats"][i]
+                for i, date in enumerate(parsed_data["dates"])
+                if week_start <= date <= week_end
+            )
+            week_sit_ups = sum(
+                parsed_data["sit_ups"][i]
+                for i, date in enumerate(parsed_data["dates"])
+                if week_start <= date <= week_end
+            )
+            filtered_dates.append(f"{week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}")
+            filtered_push_ups.append(week_push_ups)
+            filtered_squats.append(week_squats)
+            filtered_sit_ups.append(week_sit_ups)
 
     elif interval == "Every Month of Year":
         current_year = parsed_data["dates"][0].year
         month_data = {}
-        for date, push_ups in zip(parsed_data["dates"], parsed_data["push_ups"]):
+        for date, push_ups, squats, sit_ups in zip(parsed_data["dates"], parsed_data["push_ups"], parsed_data["squats"], parsed_data["sit_ups"]):
             if date.year == current_year:
                 month = date.month
                 if month not in month_data:
-                    month_data[month] = []
-                month_data[month].append(push_ups)
+                    month_data[month] = {"push_ups": 0, "squats": 0, "sit_ups": 0}
+                month_data[month]["push_ups"] += push_ups
+                month_data[month]["squats"] += squats
+                month_data[month]["sit_ups"] += sit_ups
 
         for month in range(1, 13):
             if month in month_data:
                 filtered_dates.append(calendar.month_name[month])
-                filtered_push_ups.append(sum(month_data[month]))
+                filtered_push_ups.append(month_data[month]["push_ups"])
+                filtered_squats.append(month_data[month]["squats"])
+                filtered_sit_ups.append(month_data[month]["sit_ups"])
             else:
                 filtered_dates.append(calendar.month_name[month])
                 filtered_push_ups.append(0)
+                filtered_squats.append(0)
+                filtered_sit_ups.append(0)
 
     elif interval == "Today":
         today = datetime.now().strftime("%Y-%m-%d")
-        today_total = sum(parsed_data["push_ups"][i] for i, date in enumerate(parsed_data["dates"]) if date.strftime("%Y-%m-%d") == today)
+        today_push_ups = sum(
+            parsed_data["push_ups"][i]
+            for i, date in enumerate(parsed_data["dates"])
+            if date.strftime("%Y-%m-%d") == today
+        )
+        today_squats = sum(
+            parsed_data["squats"][i]
+            for i, date in enumerate(parsed_data["dates"])
+            if date.strftime("%Y-%m-%d") == today
+        )
+        today_sit_ups = sum(
+            parsed_data["sit_ups"][i]
+            for i, date in enumerate(parsed_data["dates"])
+            if date.strftime("%Y-%m-%d") == today
+        )
         filtered_dates.append(today)
-        filtered_push_ups.append(today_total)
+        filtered_push_ups.append(today_push_ups)
+        filtered_squats.append(today_squats)
+        filtered_sit_ups.append(today_sit_ups)
 
-    return {"dates": filtered_dates, "push_ups": filtered_push_ups}
+    return {"dates": filtered_dates, "push_ups": filtered_push_ups, "squats": filtered_squats, "sit_ups": filtered_sit_ups}
 
 def update_chart():
     global parsed_data
@@ -78,12 +127,14 @@ def update_chart():
         widget.destroy()
 
     fig, ax = plt.subplots()
-    ax.bar(filtered_data["dates"], filtered_data["push_ups"], width=0.6)
+    ax.bar(filtered_data["dates"], filtered_data["push_ups"], width=0.6, label='Push-ups')
+    ax.bar(filtered_data["dates"], filtered_data["squats"], width=0.4, label='Squats')
+    ax.bar(filtered_data["dates"], filtered_data["sit_ups"], width=0.4, label='Sit-ups')
     ax.set_xlabel('Date and Time')
-    ax.set_ylabel('Number of Push-ups')
-    ax.set_title('Push-ups Over Time')
-
+    ax.set_ylabel('Number of exercises')
+    ax.set_title('Exercises Over Time')
     plt.xticks(rotation=45, ha='right')
+    ax.legend()
 
     canvas = FigureCanvasTkAgg(fig, master=chart_tab)
     canvas.draw()
@@ -153,5 +204,5 @@ def create_gui():
     root.mainloop()
 
 if __name__ == "__main__":
-    parsed_data = parse_data_from_file("pushup_count.txt")
+    parsed_data = parse_data_from_file("exercise_count.txt")
     create_gui()
