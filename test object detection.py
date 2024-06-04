@@ -33,7 +33,7 @@ sport_list = {
         'right_points_idx': [12, 14, 16],
         'maintaining': 80,
         'relaxing': 140,
-        'concerned_key_points_idx': [11, 12, 13, 14, 15],
+        'concerned_key_points_idx': [11, 12, 13, 14, 15, 16],
         'concerned_skeletons_idx': [[16, 14], [14, 12], [17, 15], [15, 13]]
     }
 }
@@ -51,24 +51,27 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
 
     left_points = [[key_points.data[0][i][0], key_points.data[0][i][1]] for i in left_points_idx]
     right_points = [[key_points.data[0][i][0], key_points.data[0][i][1]] for i in right_points_idx]
+
     line1_left = [
-        left_points[1][0].item(), left_points[1][1].item(),
-        left_points[0][0].item(), left_points[0][1].item()
+        left_points[1][0], left_points[1][1],
+        left_points[0][0], left_points[0][1]
     ]
     line2_left = [
-        left_points[1][0].item(), left_points[1][1].item(),
-        left_points[2][0].item(), left_points[2][1].item()
+        left_points[1][0], left_points[1][1],
+        left_points[2][0], left_points[2][1]
     ]
     angle_left = _calculate_angle(line1_left, line2_left)
+
     line1_right = [
-        right_points[1][0].item(), right_points[1][1].item(),
-        right_points[0][0].item(), right_points[0][1].item()
+        right_points[1][0], right_points[1][1],
+        right_points[0][0], right_points[0][1]
     ]
     line2_right = [
-        right_points[1][0].item(), right_points[1][1].item(),
-        right_points[2][0].item(), right_points[2][1].item()
+        right_points[1][0], right_points[1][1],
+        right_points[2][0], right_points[2][1]
     ]
     angle_right = _calculate_angle(line1_right, line2_right)
+
     angle = (angle_left + angle_right) / 2
     return angle
 
@@ -76,60 +79,64 @@ def main():
     # Initialize pygame mixer
     pygame.mixer.init()
 
-    # Load push-up count from the file for the current day, if available
+    # Load push-up and squat counts from the file for the current day, if available
     current_date = datetime.datetime.now().strftime("%m/%d/%y")
     pushup_counter = 0
+    squat_counter = 0
     total_pushup_count = 0
-    # push up goal for the day
+    total_squat_count = 0
     daily_pushup_goal = 100
-    
-    if os.path.exists("pushup_count.txt") and os.stat("pushup_count.txt").st_size != 0:
-        with open("pushup_count.txt", "r") as file:
+    daily_squat_goal = 100
+
+    if os.path.exists("exercise_count.txt") and os.stat("exercise_count.txt").st_size != 0:
+        with open("exercise_count.txt", "r") as file:
             for line in file:
-                # Extract date from the line
                 line_parts = line.split(", ")
-                if len(line_parts) >= 2:
+                if len(line_parts) >= 3:
                     line_date = line_parts[0].split(" ")[1]
                     if current_date == line_date:
-                        print("Found entry for today:", line)
-                        # Extract push-up count from the line and add it to the total count
-                        total_pushup_count += int(line_parts[1].split(" ")[0])
+                        if "push-ups" in line_parts[1]:
+                            total_pushup_count += int(line_parts[1].split(" ")[0])
+                        if "squats" in line_parts[2]:
+                            total_squat_count += int(line_parts[2].split(" ")[0])
 
     print("Total push-up count for today:", total_pushup_count)
+    print("Total squat count for today:", total_squat_count)
 
     model_path = 'model/yolov8s-pose.engine'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
-    # 0 is for camera. You can change to path of a video
     input_video_path = r'0'
     exit_key = "q"
-    # Load the YOLOv8 model
     model = YOLO(model_path)
 
-    # Load exercise model
     with open(os.path.join(os.path.dirname(detector_model_path), 'idx_2_category.json'), 'r') as f:
         idx_2_category = json.load(f)
     detect_model = LSTM(17*2, 8, 2, 3, model.device)
     model_weight = torch.load(detector_model_path)
     detect_model.load_state_dict(model_weight)
 
-    # Open the video file or camera
     if input_video_path.isnumeric():
         cap = cv2.VideoCapture(int(input_video_path))
     else:
         cap = cv2.VideoCapture(input_video_path)
 
-    # Set variables to record motion status
-    reaching = False
-    reaching_last = False
-    state_keep = False
-    prev_angle = None
+    reaching_pushup = False
+    reaching_squat = False
+    reaching_last_pushup = False
+    reaching_last_squat = False
+    state_keep_pushup = False
+    state_keep_squat = False
+    prev_angle_pushup = None
+    prev_angle_squat = None
 
-    # Define thresholds and hysteresis
-    maintaining_threshold = sport_list['pushup']['maintaining']
-    relaxing_threshold = sport_list['pushup']['relaxing']
-    hysteresis = 48.7  # Adjust this value based on experimentation (For Videos = 40 is good and for Camera = 48.7 wroks for skinny. Jacket/Coat dont work (sometimes count Not 100%))
+    maintaining_threshold_pushup = sport_list['pushup']['maintaining']
+    relaxing_threshold_pushup = sport_list['pushup']['relaxing']
+    maintaining_threshold_squat = sport_list['squat']['maintaining']
+    relaxing_threshold_squat = sport_list['squat']['relaxing']
+    hysteresis = 48.7
 
-    pushup_sound = pygame.mixer.Sound(r'Path To Sound Folder HERE!!!')
+    pushup_sound = pygame.mixer.Sound(r'Location to sound')
+    squat_sound = pygame.mixer.Sound(r'Location to sound')
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -140,49 +147,62 @@ def main():
             if results[0].keypoints.shape[1] == 0:
                 continue
 
-            angle = calculate_angle(results[0].keypoints, sport_list['pushup']['left_points_idx'], sport_list['pushup']['right_points_idx'])
+            angle_pushup = calculate_angle(results[0].keypoints, sport_list['pushup']['left_points_idx'], sport_list['pushup']['right_points_idx'])
+            angle_squat = calculate_angle(results[0].keypoints, sport_list['squat']['left_points_idx'], sport_list['squat']['right_points_idx'])
 
-            if angle < maintaining_threshold - hysteresis:
-                reaching = True
-            elif angle > relaxing_threshold + hysteresis:
-                reaching = False
+            if angle_pushup < maintaining_threshold_pushup - hysteresis:
+                reaching_pushup = True
+            elif angle_pushup > relaxing_threshold_pushup + hysteresis:
+                reaching_pushup = False
 
-            if reaching != reaching_last:
-                reaching_last = reaching
-                if reaching:
-                    state_keep = True
-                elif not reaching and state_keep:
-                    # Check if the angle has crossed the threshold in the opposite direction
-                    if prev_angle is not None and prev_angle > relaxing_threshold:
+            if reaching_pushup != reaching_last_pushup:
+                reaching_last_pushup = reaching_pushup
+                if reaching_pushup:
+                    state_keep_pushup = True
+                elif not reaching_pushup and state_keep_pushup:
+                    if prev_angle_pushup is not None and prev_angle_pushup > relaxing_threshold_pushup:
                         pushup_counter += 1
                         total_pushup_count += 1
-                        # Play push-up sound
                         pushup_sound.play()
-                    state_keep = False
-            prev_angle = angle
+                    state_keep_pushup = False
+            prev_angle_pushup = angle_pushup
 
-            # Set text to display based on push-up count
-            if total_pushup_count >= daily_pushup_goal:
-                text = "Completed daily push-ups"
+            if angle_squat < maintaining_threshold_squat - hysteresis:
+                reaching_squat = True
+            elif angle_squat > relaxing_threshold_squat + hysteresis:
+                reaching_squat = False
+
+            if reaching_squat != reaching_last_squat:
+                reaching_last_squat = reaching_squat
+                if reaching_squat:
+                    state_keep_squat = True
+                elif not reaching_squat and state_keep_squat:
+                    if prev_angle_squat is not None and prev_angle_squat > relaxing_threshold_squat:
+                        squat_counter += 1
+                        total_squat_count += 1
+                        squat_sound.play()
+                    state_keep_squat = False
+            prev_angle_squat = angle_squat
+
+            if total_pushup_count >= daily_pushup_goal and total_squat_count >= daily_squat_goal:
+                text = "Completed daily exercises"
             else:
-                text = f"Number of Push-ups: {total_pushup_count}/{daily_pushup_goal}"
-                text2 =f"Press: {exit_key} to quit"
-            # Display push-up counter on the video frame
+                text = f"Push-ups: {total_pushup_count}/{daily_pushup_goal} | Squats: {total_squat_count}/{daily_squat_goal}"
+                text2 = f"Press: {exit_key} to quit"
+
             cv2.putText(frame, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(frame, text2, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            cv2.imshow("Push-up Cam", frame)
+            cv2.imshow("Exercise Cam", frame)
 
-            # End the program and save push-up count to a text file if 'exit_key' is pressed
             key = cv2.waitKey(1)
             if key & 0xFF == ord(f"{exit_key}"):
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
-                with open("pushup_count.txt", "a") as file:
-                    file.write(f"{current_time}, {pushup_counter} push-ups\n")
+                with open("exercise_count.txt", "a") as file:
+                    file.write(f"{current_time}, {pushup_counter} push-ups, {squat_counter} squats\n")
                 break
             
-            # Check if the push-up count has reached goal
-            if pushup_counter == daily_pushup_goal:
+            if pushup_counter == daily_pushup_goal and squat_counter == daily_squat_goal:
                 print("Challenge Complete!")
         else:
             break
@@ -190,8 +210,7 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
 
-    # Runs the pushup_count_message.py script after object_detect.py terminates
-    subprocess.Popen(["python", "pushup_count_message.py"])
+    subprocess.Popen(["python", "exercise_count_message.py"])
 
 if __name__ == '__main__':
     main()
