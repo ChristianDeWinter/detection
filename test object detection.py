@@ -79,33 +79,39 @@ def main():
     # Initialize pygame mixer
     pygame.mixer.init()
 
-    # Load push-up and squat counts from the file for the current day, if available
+    # Load push-up, squat, and sit-up counts from the file for the current day, if available
     current_date = datetime.datetime.now().strftime("%m/%d/%y")
     pushup_counter = 0
     squat_counter = 0
+    situp_counter = 0
     total_pushup_count = 0
     total_squat_count = 0
+    total_situp_count = 0
     daily_pushup_goal = 100
     daily_squat_goal = 100
+    daily_situp_goal = 100
 
     if os.path.exists("exercise_count.txt") and os.stat("exercise_count.txt").st_size != 0:
         with open("exercise_count.txt", "r") as file:
             for line in file:
                 line_parts = line.split(", ")
-                if len(line_parts) >= 3:
+                if len(line_parts) >= 4:
                     line_date = line_parts[0].split(" ")[1]
                     if current_date == line_date:
                         if "push-ups" in line_parts[1]:
                             total_pushup_count += int(line_parts[1].split(" ")[0])
                         if "squats" in line_parts[2]:
                             total_squat_count += int(line_parts[2].split(" ")[0])
+                        if "sit-ups" in line_parts[3]:
+                            total_situp_count += int(line_parts[3].split(" ")[0])
 
     print("Total push-up count for today:", total_pushup_count)
     print("Total squat count for today:", total_squat_count)
+    print("Total sit-up count for today:", total_situp_count)
 
     model_path = 'model/yolov8s-pose.engine'
     detector_model_path = './for_detect/checkpoint/best_model.pt'
-    input_video_path = r'0'
+    input_video_path = r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\video\pushup2.mp4'
     exit_key = "q"
     model = YOLO(model_path)
 
@@ -122,21 +128,28 @@ def main():
 
     reaching_pushup = False
     reaching_squat = False
+    reaching_situp = False
     reaching_last_pushup = False
     reaching_last_squat = False
+    reaching_last_situp = False
     state_keep_pushup = False
     state_keep_squat = False
+    state_keep_situp = False
     prev_angle_pushup = None
     prev_angle_squat = None
+    prev_angle_situp = None
 
     maintaining_threshold_pushup = sport_list['pushup']['maintaining']
     relaxing_threshold_pushup = sport_list['pushup']['relaxing']
     maintaining_threshold_squat = sport_list['squat']['maintaining']
     relaxing_threshold_squat = sport_list['squat']['relaxing']
+    maintaining_threshold_situp = sport_list['situp']['maintaining']
+    relaxing_threshold_situp = sport_list['situp']['relaxing']
     hysteresis = 48.7
 
-    pushup_sound = pygame.mixer.Sound(r'Location to sound')
-    squat_sound = pygame.mixer.Sound(r'Location to sound')
+    pushup_sound = pygame.mixer.Sound(r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\sound\ding.mp3')
+    squat_sound = pygame.mixer.Sound(r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\sound\ding.mp3')
+    situp_sound = pygame.mixer.Sound(r'C:\Users\CTRL C and CTRL V\Documents\bitacademy\Project\motivation software app\detection\sound\ding.mp3')
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -149,6 +162,7 @@ def main():
 
             angle_pushup = calculate_angle(results[0].keypoints, sport_list['pushup']['left_points_idx'], sport_list['pushup']['right_points_idx'])
             angle_squat = calculate_angle(results[0].keypoints, sport_list['squat']['left_points_idx'], sport_list['squat']['right_points_idx'])
+            angle_situp = calculate_angle(results[0].keypoints, sport_list['situp']['left_points_idx'], sport_list['situp']['right_points_idx'])
 
             if angle_pushup < maintaining_threshold_pushup - hysteresis:
                 reaching_pushup = True
@@ -183,15 +197,45 @@ def main():
                         squat_sound.play()
                     state_keep_squat = False
             prev_angle_squat = angle_squat
+            
+            if angle_situp < maintaining_threshold_situp - hysteresis:
+                reaching_situp = True
+            elif angle_situp > relaxing_threshold_situp + hysteresis:  # Fixed the typo here
+                reaching_situp = False
 
-            if total_pushup_count >= daily_pushup_goal and total_squat_count >= daily_squat_goal:
-                text = "Completed daily exercises"
+            if reaching_situp != reaching_last_situp:
+                reaching_last_situp = reaching_situp
+                if reaching_situp:
+                    state_keep_situp = True
+                elif not reaching_situp and state_keep_situp:
+                    if prev_angle_situp is not None and prev_angle_situp > relaxing_threshold_situp:
+                        situp_counter += 1
+                        total_situp_count += 1
+                        situp_sound.play()
+                    state_keep_situp = False
+            prev_angle_situp = angle_situp
+
+            text_lines = []
+            if total_pushup_count >= daily_pushup_goal:
+                text_lines.append(f"Push-ups: {total_pushup_count}/{daily_pushup_goal} - Completed!")
             else:
-                text = f"Push-ups: {total_pushup_count}/{daily_pushup_goal} | Squats: {total_squat_count}/{daily_squat_goal}"
-                text2 = f"Press: {exit_key} to quit"
+                text_lines.append(f"Push-ups: {total_pushup_count}/{daily_pushup_goal}")
 
-            cv2.putText(frame, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(frame, text2, (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            if total_squat_count >= daily_squat_goal:
+                text_lines.append(f"Squats: {total_squat_count}/{daily_squat_goal} - Completed!")
+            else:
+                text_lines.append(f"Squats: {total_squat_count}/{daily_squat_goal}")
+
+            if total_situp_count >= daily_situp_goal:
+                text_lines.append(f"Sit-ups: {total_situp_count}/{daily_situp_goal} - Completed!")
+            else:
+                text_lines.append(f"Sit-ups: {total_situp_count}/{daily_situp_goal}")
+
+            text2 = f"Press: {exit_key} to quit"
+
+            for i, line in enumerate(text_lines):
+                cv2.putText(frame, line, (20, 50 + i * 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, text2, (20, 50 + len(text_lines) * 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             cv2.imshow("Exercise Cam", frame)
 
@@ -199,10 +243,10 @@ def main():
             if key & 0xFF == ord(f"{exit_key}"):
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
                 with open("exercise_count.txt", "a") as file:
-                    file.write(f"{current_time}, {pushup_counter} push-ups, {squat_counter} squats\n")
+                    file.write(f"{current_time}, {pushup_counter} push-ups, {squat_counter} squats, {situp_counter} sit-ups\n")
                 break
             
-            if pushup_counter == daily_pushup_goal and squat_counter == daily_squat_goal:
+            if total_pushup_count >= daily_pushup_goal and total_squat_count >= daily_squat_goal and total_situp_count >= daily_situp_goal:
                 print("Challenge Complete!")
         else:
             break
