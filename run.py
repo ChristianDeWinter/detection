@@ -127,13 +127,21 @@ def update_chart():
         widget.destroy()
 
     fig, ax = plt.subplots()
-    ax.bar(filtered_data["dates"], filtered_data["push_ups"], width=0.6, label='Push-ups')
-    ax.bar(filtered_data["dates"], filtered_data["squats"], width=0.4, label='Squats')
-    ax.bar(filtered_data["dates"], filtered_data["sit_ups"], width=0.4, label='Sit-ups')
+    
+    bar_width = 0.25  # Width of the bars
+    dates = filtered_data["dates"]
+    indices = range(len(dates))
+
+    # Plot each exercise type separately
+    ax.bar([i - bar_width for i in indices], filtered_data["push_ups"], width=bar_width, label='Push-ups')
+    ax.bar(indices, filtered_data["squats"], width=bar_width, label='Squats')
+    ax.bar([i + bar_width for i in indices], filtered_data["sit_ups"], width=bar_width, label='Sit-ups')
+
     ax.set_xlabel('Date and Time')
     ax.set_ylabel('Number of exercises')
     ax.set_title('Exercises Over Time')
-    plt.xticks(rotation=45, ha='right')
+    ax.set_xticks(indices)
+    ax.set_xticklabels(dates, rotation=45, ha='right')
     ax.legend()
 
     canvas = FigureCanvasTkAgg(fig, master=chart_tab)
