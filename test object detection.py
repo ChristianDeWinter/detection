@@ -52,24 +52,12 @@ def calculate_angle(key_points, left_points_idx, right_points_idx):
     left_points = [[key_points.data[0][i][0], key_points.data[0][i][1]] for i in left_points_idx]
     right_points = [[key_points.data[0][i][0], key_points.data[0][i][1]] for i in right_points_idx]
 
-    line1_left = [
-        left_points[1][0], left_points[1][1],
-        left_points[0][0], left_points[0][1]
-    ]
-    line2_left = [
-        left_points[1][0], left_points[1][1],
-        left_points[2][0], left_points[2][1]
-    ]
+    line1_left = [left_points[1][0], left_points[1][1], left_points[0][0], left_points[0][1]]
+    line2_left = [left_points[1][0], left_points[1][1], left_points[2][0], left_points[2][1]]
     angle_left = _calculate_angle(line1_left, line2_left)
 
-    line1_right = [
-        right_points[1][0], right_points[1][1],
-        right_points[0][0], right_points[0][1]
-    ]
-    line2_right = [
-        right_points[1][0], right_points[1][1],
-        right_points[2][0], right_points[2][1]
-    ]
+    line1_right = [right_points[1][0], right_points[1][1], right_points[0][0], right_points[0][1]]
+    line2_right = [right_points[1][0], right_points[1][1], right_points[2][0], right_points[2][1]]
     angle_right = _calculate_angle(line1_right, line2_right)
 
     angle = (angle_left + angle_right) / 2
@@ -165,8 +153,10 @@ def main():
             angle_situp = calculate_angle(results[0].keypoints, sport_list['situp']['left_points_idx'], sport_list['situp']['right_points_idx'])
 
             if angle_pushup < maintaining_threshold_pushup - hysteresis:
+                print("Pushup maintained")
                 reaching_pushup = True
             elif angle_pushup > relaxing_threshold_pushup + hysteresis:
+                print("Pushup relaxed")
                 reaching_pushup = False
 
             if reaching_pushup != reaching_last_pushup:
@@ -182,8 +172,10 @@ def main():
             prev_angle_pushup = angle_pushup
 
             if angle_squat < maintaining_threshold_squat - hysteresis:
+                print("Squat maintained")
                 reaching_squat = True
             elif angle_squat > relaxing_threshold_squat + hysteresis:
+                print("Squat relaxed")
                 reaching_squat = False
 
             if reaching_squat != reaching_last_squat:
@@ -197,10 +189,12 @@ def main():
                         squat_sound.play()
                     state_keep_squat = False
             prev_angle_squat = angle_squat
-            
+
             if angle_situp < maintaining_threshold_situp - hysteresis:
+                print("Sit-up maintained")
                 reaching_situp = True
-            elif angle_situp > relaxing_threshold_situp + hysteresis:  # Fixed the typo here
+            elif angle_situp > relaxing_threshold_situp + hysteresis:
+                print("Sit-up relaxed")
                 reaching_situp = False
 
             if reaching_situp != reaching_last_situp:
@@ -240,7 +234,7 @@ def main():
             cv2.imshow("Exercise Cam", frame)
 
             key = cv2.waitKey(1)
-            if key & 0xFF == ord(f"{exit_key}"):
+            if key & 0xFF == ord(exit_key):
                 current_time = datetime.datetime.now().strftime("%A %x %I:%M %p")
                 with open("exercise_count.txt", "a") as file:
                     file.write(f"{current_time}, {pushup_counter} push-ups, {squat_counter} squats, {situp_counter} sit-ups\n")
